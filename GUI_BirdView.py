@@ -1,10 +1,10 @@
 import pygame
 import math
-
+import numpy as np
 import ColorTable as color
 from GUI_DataParsing import *
 from GUI_KeyState import *
-from Trk_PerspectiveCamera import *
+from Trk_PerspectiveCamera import PerspectiveCamera
 
 
 pygame.init()
@@ -25,7 +25,7 @@ ColorTable[4] = [color.blueviolet, color.mistyrose, color.rosybrown]
 ColorTable[5] = [color.magenta, color.magenta, color.magenta]
 
 
-def DrawBirdView(screen, TR_View, KeyState, scan_data, cmr_model):
+def DrawBirdView(screen, TR_View, KeyState, scan_data, vobj, cmr_model):
 
     SimDict = dict()
     # Data Import
@@ -33,18 +33,7 @@ def DrawBirdView(screen, TR_View, KeyState, scan_data, cmr_model):
     ObjInfo     = scan_data['Object'].value
     VobjInfo    = scan_data['AI'].value
 
-    DrawVisionObject(screen, TR_View, KeyState, VobjInfo, cmr_model)
-
-    if 'Sim_NumLane' in scan_data:
-        TrafficInfo = dict()
-        TrafficInfo['NumLane']      = scan_data['Sim_NumLane'].value
-        TrafficInfo['NumLaneStep']  = scan_data['Sim_NumLaneStep'].value
-        TrafficInfo['LeftLane_X']   = scan_data['Sim_LeftLane_X'].value
-        TrafficInfo['LeftLane_Y']   = scan_data['Sim_LeftLane_Y'].value
-        TrafficInfo['RightLane_X']  = scan_data['Sim_RightLane_X'].value
-        TrafficInfo['RightLane_Y']  = scan_data['Sim_RightLane_Y'].value
-
-        DrawTrafficLane(screen, TR_View, TrafficInfo)
+    DrawVisionObject(screen, TR_View, KeyState, vobj, cmr_model)
 
     # Draw Object / Tracklet / Track / Connection
     if not KeyState.Key_t:
@@ -52,31 +41,28 @@ def DrawBirdView(screen, TR_View, KeyState, scan_data, cmr_model):
 
 
 
-def DrawVisionObject(screen, TR_View, KeyState, VobjInfo, cmr_model):
+def DrawVisionObject(screen, TR_View, KeyState, vobj, cmr_model):
 
-    for idx in range(len(VobjInfo)):
+    for idx in range(len(vobj)):
 
-        VobjDict         = VisionObjectDataParsing(VobjInfo[idx])
-
-        class_id        = VobjDict['class_id']
-        confidence      = VobjDict['confidence']
-        bbox_x          = VobjDict['x_location']
-        bbox_y          = VobjDict['y_location']
-        bbox_w          = VobjDict['width']
-        bbox_h          = VobjDict['height']
+        class_id    = vobj[idx].class_id
+        confidence  = vobj[idx].confidence
+        bbox_x      = vobj[idx].bbox.x
+        bbox_y      = vobj[idx].bbox.y
+        bbox_w      = vobj[idx].bbox.w
+        bbox_h      = vobj[idx].bbox.h
 
         line_color = (255, 255, 0)
         line_width = 2
 
-        img_bot_1 = np.array([bbox_x,           bbox_y]) * np.array(cmr_model.scale)
-        img_bot_2 = np.array([bbox_x + bbox_w,  bbox_y]) * np.array(cmr_model.scale)
+        img_bot_1 = np.array([bbox_x,           bbox_y + bbox_h])
+        img_bot_2 = np.array([bbox_x + bbox_w,  bbox_y + bbox_h])
         
         wld_bot_1 = cmr_model.img2wld(img_bot_1)
         wld_bot_2 = cmr_model.img2wld(img_bot_2)
         
         if np.isnan(wld_bot_1[0]):
             return
-
 
         p1 = TR_View.getPointP2D((wld_bot_1[1],wld_bot_1[0]))
         p2 = TR_View.getPointP2D((wld_bot_2[1],wld_bot_2[0]))

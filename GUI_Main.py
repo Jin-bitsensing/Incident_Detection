@@ -3,9 +3,11 @@ import sys
 import shutil
 import pygame
 import h5py
+import time as stopwatch
 
 from GUI_Class import GUI
 from pyqtgraph.Qt import QtGui
+from GUI_DataParsing import VisionObjectDataParsing
 from Trk_VobjTracking import VobjTracking 
 
 
@@ -21,6 +23,7 @@ def GetFrameData(h5_file, group_name):
 
 ######### Global Variable ##########
 WIN_CAM_SIZE = 640, 480
+scaling_factor = [1920 / 640, 1080 / 480] # for atm220 data only
 
 # Loop
 LOOP_BASIC = 1
@@ -28,6 +31,7 @@ LOOP_FAST = 20
 LOOP_PLAY = 1
 
 PLAY_ON = False
+DISP_STOPWATCH = False
 
 
 ######### Initialization ##########
@@ -55,18 +59,58 @@ else:
 
 ######### Tracking #########
 # Tracker initialization
-
 print('Tracking process start')
 vobj_tracker = VobjTracking()
-for scan_idx in range(1, len(input_file_h5) + 1):
-    vobj_tracker.tracking(scan_idx)
+vobj_trk_hist = []
+for frame_idx in range(1, len(input_file_h5) + 1):
+    print('Frame #%d processing' % frame_idx)
+
+    # Data loading
+    start = stopwatch.time()
+    group_name = 'SCAN_{:05d}'.format(frame_idx)
+    frame_data = GetFrameData(input_file_h5, group_name)
+    end = stopwatch.time()
+    if DISP_STOPWATCH: print('H5 file loading = %f ms' %((end - start) * 1000))
+
+    # dump to ai object input interface
+    start = stopwatch.time()
+    ai_object_list = []
+    for i_obj in range(len(frame_data['AI'].value)):
+
+        if frame_data['AI'].value[i_obj][1] > 0:
+            # ai object data parsing
+            ai_object_dict = VisionObjectDataParsing(frame_data['AI'].value[i_obj])
+
+            # Re-scaling object position
+            ai_object_dict['height']        *= scaling_factor[1]   # height
+            ai_object_dict['width']         *= scaling_factor[0]   # width
+            ai_object_dict['x_location']    *= scaling_factor[0]   # x
+            ai_object_dict['y_location']    *= scaling_factor[1]   # y
+
+            # build new list
+            ai_object_list.append(ai_object_dict)
+
+        else:
+            break
+        
+    end = stopwatch.time()
+    if DISP_STOPWATCH: print('AI object loading = %f ms' %((end - start) * 1000))
+
+    # Tracking
+    start = stopwatch.time()
+    vobj_tracker.tracking(ai_object_list)
+    end = stopwatch.time()
+    if DISP_STOPWATCH: print('Tracking = %f ms' %((end - start) * 1000))
     
-print('Tracking process finish')
+    # Store simulation output
+    vobj_trk_hist.append(vobj_tracker.obj_nms)
+
+print('Tracking process finished')
 
 
 ######### Output GUI #########
 print('\nOutput display')
-output_gui = GUI(WIN_VIEW_SIZE, WIN_CAM_SIZE, SCREEN_SIZE)
+output_gui = GUI(WIN_VIEW_SIZE, WIN_CAM_SIZE, SCREEN_SIZE, vobj_trk_hist, vobj_tracker.cmr_model)
 
 FrameIndexOld = 0
 FrameIndexCur = 0
@@ -82,6 +126,7 @@ while True:
     if FrameIndexOld != FrameIndexCur:
         GroupName = 'SCAN_{:05d}'.format(FrameIndexCur)
         frame_data = GetFrameData(input_file_h5, GroupName)
+
         output_gui.display(output_gui.DisplaySurf, frame_data, FrameIndexCur)
 
         if PLAY_ON:
@@ -104,26 +149,8 @@ while True:
         # KeyBoard Event
         elif event.type == pygame.KEYDOWN:
 
-            if event.key == pygame.K_F1:
-                output_gui.ModeChange(1)
-            elif event.key == pygame.K_F2:
-                output_gui.ModeChange(2)
-            elif event.key == pygame.K_F3:
-                output_gui.ModeChange(3)
-            elif event.key == pygame.K_F8:
-                print('Reference Simulation Data Save Start!!')
-                for idx in range(len(SimFileName)):
-                    if os.path.isfile(SimFileName[idx]):
-                        shutil.copy(SimFileName[idx], RefFileName[idx])
-                print('Reference Simulation Data Saved!')
-            elif event.key == pygame.K_F10:
-                output_gui = UIC.RadarTooloutput_gui(WIN_VIEW_SIZE, WIN_CAM_SIZE, SCREEN_SIZE)
-                FrameIndexCur = FrameIndexMin
-            elif event.key == pygame.K_F12:
-                output_gui.ModeChange(12)
-
             # Move
-            elif event.key == pygame.K_LEFT:  # Left
+            if event.key == pygame.K_LEFT:  # Left
                 if FrameIndexCur - LOOP_BASIC > FrameIndexMin:
                     FrameIndexCur -= LOOP_BASIC
                 else:

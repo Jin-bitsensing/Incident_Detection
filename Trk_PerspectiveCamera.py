@@ -21,12 +21,11 @@ class PerspectiveCamera:
 
     UNDISTORT_N_ITER = 3
 
-    def __init__(self, image_size, intrinsic_parameter, distortion_coefficient, rvec, tvec, scale):        
+    def __init__(self, image_size, intrinsic_parameter, distortion_coefficient, rvec, tvec):        
 
         ## public
         # Image size = [width, height]
         self.image_size = image_size
-        self.scale      = scale
 
         ## private
         # Intrinsic parameter

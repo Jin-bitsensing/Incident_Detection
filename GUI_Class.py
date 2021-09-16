@@ -5,7 +5,6 @@ from GUI_KeyState import *
 from GUI_BirdView import *
 from GUI_DrawInfo import *
 from GUI_DataParsing import *
-from Trk_PerspectiveCamera import PerspectiveCamera
 import ColorTable as Color
 import io
 import h5py
@@ -20,42 +19,17 @@ SubTitleFont1 = pygame.font.Font('./font/Typo_SsangmunDongStencil.ttf', 16)
 
 
 class GUI:
-    
-    IMAGE_WIDTH                     = 1920
-    IMAGE_HEIGHT					= 1080
-    CAMERA_INTRINSIC_FX				= 2119.137451					# Focal length in pixels 
-    CAMERA_INTRINSIC_FY				= 2120.412109					# Focal length in pixels 
-    CAMERA_INTRINSIC_CX				= 925.452271					# Principal point (Optical center) 
-    CAMERA_INTRINSIC_CY				= 564.02832					# Principal point (Optical center) 
-    CAMERA_INTRINSIC_SKEW			= -11.126279
-    CAMERA_INTRINSIC_K1				= -0.560545					# Radial distortion 
-    CAMERA_INTRINSIC_K2				= 0.515465					# Radial distortion 
-    CAMERA_INTRINSIC_K3				= -0.070978					# Radial distortion 
-    CAMERA_INTRINSIC_P1				= -0.001732					# Tangential distortion
-    CAMERA_INTRINSIC_P2				= -1.6e-05					# Tangential distortion
-
-    CAMERA_EXTRINSIC_POS_X			= -3.0
-    CAMERA_EXTRINSIC_POS_Y			= 0.5
-    CAMERA_EXTRINSIC_POS_Z			= 8.0
-    CAMERA_EXTRINSIC_ANGLE_YAW		= 3.5
-    CAMERA_EXTRINSIC_ANGLE_PITCH	= 21.0
-    CAMERA_EXTRINSIC_ANGLE_ROLL		= 1.0
-
-    CAMERA_EXTRINSIC_POS_X_2		= 0.0
-    CAMERA_EXTRINSIC_POS_Y_2		= 1.0
-    CAMERA_EXTRINSIC_POS_Z_2		= 8.4
-    CAMERA_EXTRINSIC_ANGLE_YAW_2	= 3.5
-    CAMERA_EXTRINSIC_ANGLE_PITCH_2	= 21.2
-    CAMERA_EXTRINSIC_ANGLE_ROLL_2	= -3.5
-
-
-    def __init__(self, Win_View_Size, Win_CAM_size, Screen_Size):
+   
+    def __init__(self, Win_View_Size, Win_CAM_size, Screen_Size, vobj, cmr_model):
 
         # initialization
-        self.WinViewSize = Win_View_Size
-        self.WinCAMSize = Win_CAM_size
-        self.WinMainSize = Win_View_Size[0]+Win_CAM_size[0], Win_View_Size[1]
-        self.ScreenSize = Screen_Size
+        self.WinViewSize    = Win_View_Size
+        self.WinCAMSize     = Win_CAM_size
+        self.WinMainSize    = Win_View_Size[0]+Win_CAM_size[0], Win_View_Size[1]
+        self.ScreenSize     = Screen_Size
+        self._vobj          = vobj
+        self._cmr_model     = cmr_model
+
         self.WinTitle = []
 
         self.DisplaySurf = pygame.display.set_mode(self.WinMainSize, pygame.RESIZABLE)
@@ -82,26 +56,6 @@ class GUI:
         self.lat_range  = [-30, 30]
 
 
-        # Define camera parameter
-        image_size                  = [ self.IMAGE_WIDTH, self.IMAGE_HEIGHT ]
-        intrinsic_parameter         = [ self.CAMERA_INTRINSIC_FX, self.CAMERA_INTRINSIC_FY, 
-                                        self.CAMERA_INTRINSIC_CX, self.CAMERA_INTRINSIC_CY, 
-                                        self.CAMERA_INTRINSIC_SKEW ]	                        # fx, fy, cx, cy, skew
-        distortion_coefficient      = [ self.CAMERA_INTRINSIC_K1, self.CAMERA_INTRINSIC_K2, self.CAMERA_INTRINSIC_K3, 
-                                       self.CAMERA_INTRINSIC_P1, self.CAMERA_INTRINSIC_P2 ]
-        extrinsic_translation       = [ self.CAMERA_EXTRINSIC_POS_X, 
-                                        self.CAMERA_EXTRINSIC_POS_Y, 
-                                        self.CAMERA_EXTRINSIC_POS_Z ]                           # tx, ty, tz
-        installation_angle_offset   = [ self.CAMERA_EXTRINSIC_ANGLE_YAW, 
-                                        self.CAMERA_EXTRINSIC_ANGLE_PITCH, 
-                                        self.CAMERA_EXTRINSIC_ANGLE_ROLL ]						# rx, ry, rz
-        extrinsic_euler_angle       = [ -1 * installation_angle_offset[0], 
-                                        -1 * installation_angle_offset[1], 
-                                        -1 * installation_angle_offset[2] ]
-        scaling_factor              = [self.IMAGE_WIDTH / Win_CAM_size[0], self.IMAGE_HEIGHT / Win_CAM_size[1]]
-
-        self.cmr_model = PerspectiveCamera(image_size, intrinsic_parameter, distortion_coefficient, extrinsic_euler_angle, extrinsic_translation, scaling_factor)
-
         
         # display
         self.DisplayChange(self.DisplaySurf)
@@ -114,9 +68,7 @@ class GUI:
         self.display(self.DisplaySurf, frame_data, frame_idx)
 
 
-
     def DisplayChange(self, screen):
-
         temp_WinSize = screen.get_size()
         temp_ViewSize = int(temp_WinSize[0]-self.WinCAMSize[0]), temp_WinSize[1]
         R = (1, 0, 0, -1)
@@ -220,11 +172,10 @@ class GUI:
             img = back_image
 
         self.Draw_VisionObject_Image(screen, frame_data, img)
-
-
+        
         # Draw Simulation Data
         if frame_data is not None:
-            DrawBirdView(View_Surf[0], TR_View[0], self.KeyState, frame_data, self.cmr_model)
+            DrawBirdView(View_Surf[0], TR_View[0], self.KeyState, frame_data, self._vobj[frame_idx - 1], self._cmr_model)
 
         # BirdEye View Blit
         screen.blit(View_Surf[0], self.ViewPos[0])
