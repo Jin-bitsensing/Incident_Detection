@@ -103,7 +103,7 @@ for frame_idx in range(1, len(input_file_h5) + 1):
     if DISP_STOPWATCH: print('Tracking = %f ms' %((end - start) * 1000))
     
     # Store simulation output
-    vobj_trk_hist.append(vobj_tracker.obj_nms)
+    vobj_trk_hist.append(vobj_tracker.obj_in_nms)
 
 print('Tracking process finished')
 
