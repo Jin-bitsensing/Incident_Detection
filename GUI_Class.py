@@ -175,7 +175,7 @@ class GUI:
         
         # Draw Simulation Data
         if frame_data is not None:
-            DrawBirdView(View_Surf[0], TR_View[0], self.KeyState, frame_data, self._vobj[frame_idx - 1], self._cmr_model)
+            DrawBirdView(View_Surf[0], TR_View[0], self.KeyState, frame_data['Object'].value, self._vobj[frame_idx])
 
         # BirdEye View Blit
         screen.blit(View_Surf[0], self.ViewPos[0])

@@ -41,8 +41,8 @@ class PerspectiveCamera:
         self._p1	= distortion_coefficient[3]
         self._p2	= distortion_coefficient[4]
         
-        self._rvec = rvec
-        self._tvec = np.reshape(tvec, (3,1))
+        self._rvec  = rvec
+        self._tvec  = np.reshape(tvec, (3,1))
         
 
         self.InitCameraMatrix()

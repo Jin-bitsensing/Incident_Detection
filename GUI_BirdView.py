@@ -25,50 +25,46 @@ ColorTable[4] = [color.blueviolet, color.mistyrose, color.rosybrown]
 ColorTable[5] = [color.magenta, color.magenta, color.magenta]
 
 
-def DrawBirdView(screen, TR_View, KeyState, scan_data, vobj, cmr_model):
+def DrawBirdView(screen, TR_View, KeyState, robj, vobj):
 
     SimDict = dict()
-    # Data Import
-    MeasInfo    = scan_data['Measurement'].value
-    ObjInfo     = scan_data['Object'].value
-    VobjInfo    = scan_data['AI'].value
 
-    DrawVisionObject(screen, TR_View, KeyState, vobj, cmr_model)
+    DrawVisionObject(screen, TR_View, KeyState, vobj)
 
-    # Draw Object / Tracklet / Track / Connection
     if not KeyState.Key_t:
-        DrawTrack(screen, TR_View, KeyState, ObjInfo)    
+        DrawTrack(screen, TR_View, KeyState, robj)    
 
 
 
-def DrawVisionObject(screen, TR_View, KeyState, vobj, cmr_model):
+def DrawVisionObject(screen, TR_View, KeyState, vobj):
+
+    # Configuration
+    line_color = (255, 255, 0)
+    line_width = 2
 
     for idx in range(len(vobj)):
 
-        class_id    = vobj[idx].class_id
-        confidence  = vobj[idx].confidence
-        bbox_x      = vobj[idx].bbox.x
-        bbox_y      = vobj[idx].bbox.y
-        bbox_w      = vobj[idx].bbox.w
-        bbox_h      = vobj[idx].bbox.h
+        if vobj[idx].idx is not -1:
 
-        line_color = (255, 255, 0)
-        line_width = 2
+            # Data passing
+            ID      = vobj[idx].idx
+            obj_x   = vobj[idx].pos_x
+            obj_y   = vobj[idx].pos_y
+            obj_w   = vobj[idx].wid
+            obj_l   = vobj[idx].len
+            
+            # bounding box
+            bbox0 = TR_View.getPointP2D((obj_y - obj_w * 0.5, obj_x - obj_l * 0.5))
+            bbox1 = TR_View.getPointP2D((obj_y + obj_w * 0.5, obj_x - obj_l * 0.5))
+            bbox2 = TR_View.getPointP2D((obj_y + obj_w * 0.5, obj_x + obj_l * 0.5))
+            bbox3 = TR_View.getPointP2D((obj_y - obj_w * 0.5, obj_x + obj_l * 0.5))
 
-        img_bot_1 = np.array([bbox_x,           bbox_y + bbox_h])
-        img_bot_2 = np.array([bbox_x + bbox_w,  bbox_y + bbox_h])
+            pygame.draw.polygon(screen, line_color, [bbox0, bbox1, bbox2, bbox3], line_width)
         
-        wld_bot_1 = cmr_model.img2wld(img_bot_1)
-        wld_bot_2 = cmr_model.img2wld(img_bot_2)
-        
-        if np.isnan(wld_bot_1[0]):
-            return
+            # ID
+            label = myFont1.render('%d' %(ID), True, line_color)
+            screen.blit(label, (bbox2[0]+5, bbox2[1]))
 
-        p1 = TR_View.getPointP2D((wld_bot_1[1],wld_bot_1[0]))
-        p2 = TR_View.getPointP2D((wld_bot_2[1],wld_bot_2[0]))
-        
-        pygame.draw.line(screen, line_color, p1, p2, line_width)
-        
 
 def DrawTrack(screen, TR_View, KeyState, TrkInfo):
 
@@ -146,10 +142,10 @@ def DrawTrack(screen, TR_View, KeyState, TrkInfo):
             RefPos = TR_View.getPointP2D((RefPosY, RefPosX))
             pygame.draw.circle(screen, colorL, RefPos, ref_radius)
 
-            #if (MovState == 1) or (MovState == 2):
-            #    # Display Info
-            #    label = myFont1.render('%d' % (TrkIdx), True, colorT)
-            #    screen.blit(label, (disp_pos[0], disp_pos[1] + disp_off[1]))
+            if (MovState == 1) or (MovState == 2):
+                # Display Info
+                label = myFont1.render('%d' % (TrkIdx), True, colorL)
+                screen.blit(label, (RefPos[0]+5, RefPos[1]))
 
 
 

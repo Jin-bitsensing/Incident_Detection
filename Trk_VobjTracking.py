@@ -1,3 +1,4 @@
+import numpy as np
 from enum import Enum
 from Trk_PerspectiveCamera import PerspectiveCamera
 
@@ -64,7 +65,7 @@ class VisionObject:
 
         # Private
         self._match_idx = match_idx
-
+        
 
 class VobjTracking:
     
@@ -73,60 +74,59 @@ class VobjTracking:
     # vision object
     NUM_OBJ_MAX = 256
     
-    # camera parameter
-    IMAGE_WIDTH                     = 1920
-    IMAGE_HEIGHT					= 1080
-    CAMERA_INTRINSIC_FX				= 2119.137451					# Focal length in pixels 
-    CAMERA_INTRINSIC_FY				= 2120.412109					# Focal length in pixels 
-    CAMERA_INTRINSIC_CX				= 925.452271					# Principal point (Optical center) 
-    CAMERA_INTRINSIC_CY				= 564.02832					# Principal point (Optical center) 
-    CAMERA_INTRINSIC_SKEW			= -11.126279
-    CAMERA_INTRINSIC_K1				= -0.560545					# Radial distortion 
-    CAMERA_INTRINSIC_K2				= 0.515465					# Radial distortion 
-    CAMERA_INTRINSIC_K3				= -0.070978					# Radial distortion 
-    CAMERA_INTRINSIC_P1				= -0.001732					# Tangential distortion
-    CAMERA_INTRINSIC_P2				= -1.6e-05					# Tangential distortion
-
-    CAMERA_EXTRINSIC_POS_X			= -3.0
-    CAMERA_EXTRINSIC_POS_Y			= 0.5
-    CAMERA_EXTRINSIC_POS_Z			= 8.0
-    CAMERA_EXTRINSIC_ANGLE_YAW		= 3.5
-    CAMERA_EXTRINSIC_ANGLE_PITCH	= 21.0
-    CAMERA_EXTRINSIC_ANGLE_ROLL		= 1.0
 
     # Object tracking
     OBJECT_NON_MAX_SUPPRESS_IOU_THRE = 0.8
+
+    # Moving state estimation
+    MOVING_STATE_EST_MIN_AGE         = 1
+    MOVING_STATE_EST_IMGYDIF_MARGIN  = 0
+    MOVING_STATE_EST_SCORE_MOVING    = 2
+    MOVING_STATE_EST_SCORE_THRESHOLD = 2
+    MOVING_STATE_EST_PANALTY_STOP    = 1
+
+    # Object size approximation
+    OBJ_LEN_INIT_BUS                 = 10.0
+    OBJ_WID_INIT_BUS                 = 2.5
+    OBJ_LEN_INIT_TRUCK               = 5.5
+    OBJ_WID_INIT_TRUCK               = 1.6
+    OBJ_LEN_INIT_LONG_TRUCK          = 10.0
+    OBJ_WID_INIT_LONG_TRUCK          = 2.3
+    OBJ_LEN_INIT_CAR                 = 3.5
+    OBJ_WID_INIT_CAR                 = 1.6
+    OBJ_LEN_INIT_MOTORCYCLE          = 1.5
+    OBJ_WID_INIT_MOTORCYCLE          = 1.0
+    OBJ_LEN_INIT_PEDESTRIAN          = 0.5
+    OBJ_WID_INIT_PEDESTRIAN          = 0.5
+
 
     # aux
     _SMALL_VALUE                     = 1e-17
 
 
-    def __init__(self):
+    def __init__(self, image_size, 
+                       intrinsic_parameter, 
+                       distortion_coefficient, 
+                       extrinsic_euler_angle, 
+                       extrinsic_translation):
 
         # Vision object initialization
         self.obj = [ VisionObject() for i in range(self.NUM_OBJ_MAX)]
         
         # Define camera parameter
-        self.init_camera_parameter()
+        self.init_camera_parameter(image_size, 
+                                   intrinsic_parameter, 
+                                   distortion_coefficient, 
+                                   extrinsic_euler_angle, 
+                                   extrinsic_translation)
         
 
-    def init_camera_parameter(self):
+    def init_camera_parameter(self, image_size, 
+                                    intrinsic_parameter, 
+                                    distortion_coefficient, 
+                                    extrinsic_euler_angle, 
+                                    extrinsic_translation):
 
-        image_size                  = [ self.IMAGE_WIDTH, self.IMAGE_HEIGHT ]
-        intrinsic_parameter         = [ self.CAMERA_INTRINSIC_FX, self.CAMERA_INTRINSIC_FY, 
-                                        self.CAMERA_INTRINSIC_CX, self.CAMERA_INTRINSIC_CY, 
-                                        self.CAMERA_INTRINSIC_SKEW ]	                        # fx, fy, cx, cy, skew
-        distortion_coefficient      = [ self.CAMERA_INTRINSIC_K1, self.CAMERA_INTRINSIC_K2, self.CAMERA_INTRINSIC_K3, 
-                                        self.CAMERA_INTRINSIC_P1, self.CAMERA_INTRINSIC_P2 ]
-        extrinsic_translation       = [ self.CAMERA_EXTRINSIC_POS_X, 
-                                        self.CAMERA_EXTRINSIC_POS_Y, 
-                                        self.CAMERA_EXTRINSIC_POS_Z ]                           # tx, ty, tz
-        installation_angle_offset   = [ self.CAMERA_EXTRINSIC_ANGLE_YAW, 
-                                        self.CAMERA_EXTRINSIC_ANGLE_PITCH, 
-                                        self.CAMERA_EXTRINSIC_ANGLE_ROLL ]						# rx, ry, rz
-        extrinsic_euler_angle       = [ -1 * installation_angle_offset[0], 
-                                        -1 * installation_angle_offset[1], 
-                                        -1 * installation_angle_offset[2] ]
         self.cmr_model = PerspectiveCamera(image_size, 
                                            intrinsic_parameter, 
                                            distortion_coefficient, 
@@ -144,29 +144,46 @@ class VobjTracking:
 
     def tracking(self, obj_in_dict):
 
-        # frame initializatoin
+        # Frame initializatoin
         self.init_frame()
 
-        # input data passing
-        obj_in_nms = self.input_passing(obj_in_dict)
+        # Input data passing
+        obj_in = self._input_passing(obj_in_dict)
 
-        # object association
-        self.object_association(obj_in_nms)
+        # Object association
+        self._association(obj_in)
+
+        # Data passing
+        for i_obj in range(len(obj_in)):
+
+            j_obj = obj_in[i_obj]._match_idx
+            if j_obj is not -1:
+                # update object
+                self._update(self.obj[j_obj], obj_in[i_obj])
+
+            else:
+                # Create new obj
+                self._create(obj_in[i_obj])
+
+        # Object merge
+        self._merge()
+
+        # Not matched object deletion 
+        for i_obj in range(self.NUM_OBJ_MAX):
+
+            if (self.obj[i_obj].idx is not -1) and (self.obj[i_obj]._match_idx is -1):
+                self.obj[i_obj].__init__()
 
 
-
-                                
-        # Store output
-        self.obj_in_nms = obj_in_nms
         print('tracking done')
 
 
-    def input_passing(self, obj_in):
+    def _input_passing(self, obj_in):
 
-        x_boundary_margin = self.IMAGE_WIDTH * 0.01
-        y_boundary_margin = self.IMAGE_HEIGHT * 0.01
+        x_boundary_margin = self.cmr_model.image_size[0] * 0.01
+        y_boundary_margin = self.cmr_model.image_size[1] * 0.01
 
-        obj_nms = []
+        obj_out = []
         for i_obj in range(len(obj_in)):
 
             # Check validity
@@ -179,47 +196,24 @@ class VobjTracking:
                                   obj_in[i_obj]['height'])
 
             # Clamping bounding box value to fix corrupted value
-            bbox_in.x = bound(bbox_in.x, 0, self.IMAGE_WIDTH - 1)
-            bbox_in.y = bound(bbox_in.y, 0, self.IMAGE_HEIGHT - 1)
-            bbox_in.w = min(bbox_in.x + bbox_in.w - 1, self.IMAGE_WIDTH  - 1) - bbox_in.x + 1
-            bbox_in.h = min(bbox_in.y + bbox_in.h - 1, self.IMAGE_HEIGHT - 1) - bbox_in.y + 1
+            bbox_in.x = bound(bbox_in.x, 0, self.cmr_model.image_size[0] - 1)
+            bbox_in.y = bound(bbox_in.y, 0, self.cmr_model.image_size[1] - 1)
+            bbox_in.w = min(bbox_in.x + bbox_in.w - 1, self.cmr_model.image_size[0] - 1) - bbox_in.x + 1
+            bbox_in.h = min(bbox_in.y + bbox_in.h - 1, self.cmr_model.image_size[1] - 1) - bbox_in.y + 1
 
             # Check boundary condition
             if (bbox_in.x < x_boundary_margin                                       # left
-            or self.IMAGE_WIDTH  - (bbox_in.x + bbox_in.w) < x_boundary_margin	    # right
-			or self.IMAGE_HEIGHT - (bbox_in.y + bbox_in.h) < y_boundary_margin):	# bottom
+            or self.cmr_model.image_size[0] - (bbox_in.x + bbox_in.w) < x_boundary_margin	    # right
+			or self.cmr_model.image_size[1] - (bbox_in.y + bbox_in.h) < y_boundary_margin):	# bottom
                 continue
 
-            # Non-maximum suppression
-            # Find the first overlapped
-            idx_overwrite = -1
-            flag_weak = 0
-            for j_obj in range(len(obj_nms)):
+            # Create new object
+            obj_out.append(VisionObject(len(obj_out), bbox_in, obj_in[i_obj]['class_id'], obj_in[i_obj]['confidence']))
 
-                # Check Intersection of Union
-                iou = self._calc_iou(bbox_in, obj_nms[j_obj].bbox)
-                if iou > self.OBJECT_NON_MAX_SUPPRESS_IOU_THRE:
-                
-                    # Check confidence
-                    if obj_in[i_obj]['confidence'] > obj_nms[j_obj].confidence:
-                        idx_overwrite = j_obj
-                    else:
-                        flag_weak = 1
-                    break
-                        
-            if flag_weak is 1:
-                continue
-            if idx_overwrite is -1:
-                # Create new object
-                obj_nms.append(VisionObject(len(obj_nms), bbox_in, obj_in[i_obj]['class_id'], obj_in[i_obj]['confidence']))
-            else:
-                # Data overwrite
-                obj_nms[idx_max] = VisionObject(idx_max, bbox_in, obj_in[i_obj]['class_id'], obj_in[i_obj]['confidence'])
-
-        return obj_nms
+        return obj_out
 
 
-    def object_association(self, obj_in):
+    def _association(self, obj_in):
 
         # matching priority : descending order
         for i_obj in range(len(obj_in)):
@@ -239,25 +233,6 @@ class VobjTracking:
                 self.obj[j_obj]._match_idx  = i_obj
             else:
                 obj_in[i_obj]._match_idx    = -1
-
-        # data passing
-        for i_obj in range(len(obj_in)):
-
-            j_obj = obj_in[i_obj]._match_idx
-            if j_obj is not -1:
-                # update object
-                self._update(self.obj[j_obj], obj_in[i_obj])
-
-            else:
-                # Create new obj
-                self._create(obj_in[i_obj])
-
-
-        # Not matched object deletion 
-        for i_obj in range(self.NUM_OBJ_MAX):
-
-            if (self.obj[i_obj].idx is not -1) and (self.obj[i_obj]._match_idx is -1):
-                self.obj[i_obj].__init__()
 
 
     def _calc_iou(self, bbox1, bbox2):
@@ -311,7 +286,152 @@ class VobjTracking:
                 break
         
 
-    def _pose_estimation(self, obj_trk):
+    def _merge(self):
         
-        # not implemented
-        return
+        # Object merging
+        for i_obj in range(len(self.obj)):
+
+            if self.obj[i_obj].idx is not -1:
+
+                pos_x_i = self.obj[i_obj].pos_x
+                pos_y_i = self.obj[i_obj].pos_y
+                len_i   = self.obj[i_obj].len
+                wid_i   = self.obj[i_obj].wid
+                age_i   = self.obj[i_obj].alive_age
+                bbox_i  = self.obj[i_obj].bbox
+
+                for j_obj in range(i_obj + 1, len(self.obj)):
+
+                    if self.obj[j_obj].idx is not -1:
+                        
+                        pos_x_j = self.obj[j_obj].pos_x
+                        pos_y_j = self.obj[j_obj].pos_y
+                        len_j   = self.obj[j_obj].len
+                        wid_j   = self.obj[j_obj].wid
+                        age_j   = self.obj[j_obj].alive_age
+                        bbox_j  = self.obj[j_obj].bbox
+
+                        if (abs(pos_x_i - pos_x_j) < (len_i + len_j) * 0.5
+                        and abs(pos_y_i - pos_y_j) < (wid_i + wid_j) * 0.5):
+
+                            # merge to older object
+                            if age_i >= age_j:
+                                self.obj[i_obj].pos_x = pos_x_j
+                                self.obj[i_obj].pos_y = pos_y_j
+                                self.obj[i_obj].bbox  = self._merge_bbox(bbox_i, bbox_j)
+                                self.obj[j_obj].__init__()
+                            else:
+                                self.obj[j_obj].pos_x = pos_x_i
+                                self.obj[j_obj].pos_y = pos_y_i
+                                self.obj[j_obj].bbox  = self._merge_bbox(bbox_i, bbox_j)
+                                self.obj[i_obj].__init__()
+
+
+    def _merge_bbox(self, bbox1, bbox2):
+
+        x = min(bbox1.x, bbox2.x)
+        y = min(bbox1.y, bbox2.y)
+        w = max(bbox1.x + bbox1.w, bbox2.x + bbox2.w) - x + 1
+        h = max(bbox1.y + bbox1.h, bbox2.y + bbox2.h) - y + 1
+
+        return BoundingBox(x, y, w, h)
+
+
+    def _pose_estimation(self, obj):
+        
+	    # Object orientation estimation
+        if obj.alive_age > self.MOVING_STATE_EST_MIN_AGE:
+            self._moving_state_estimation(obj)
+            
+        # Object size approximation
+        self._set_object_size_from_class(obj)
+
+        # Object position estimation
+        self._set_object_position_from_bbox(obj);
+
+          
+    def _moving_state_estimation(self, obj):
+
+        ypos_curr = obj.bbox.y - obj.bbox.h * 0.5
+        ypos_prev = obj.bbox_prev.y - obj.bbox_prev.h * 0.5
+
+        if ypos_prev - ypos_curr > self.MOVING_STATE_EST_IMGYDIF_MARGIN:
+            # preceding
+            obj.mov_score = min(obj.mov_score + self.MOVING_STATE_EST_SCORE_MOVING, self.MOVING_STATE_EST_SCORE_THRESHOLD)
+
+        elif ypos_curr - ypos_prev > self.MOVING_STATE_EST_IMGYDIF_MARGIN:
+            # oncoming
+            obj.mov_score = max(obj.mov_score - self.MOVING_STATE_EST_SCORE_MOVING, self.MOVING_STATE_EST_SCORE_THRESHOLD * (-1))
+
+        else:
+            # stop
+            if obj.mov_score > 0:
+                obj.mov_score -= self.MOVING_STATE_EST_PANALTY_STOP
+            elif obj.mov_score < 0:
+                obj.mov_score += self.MOVING_STATE_EST_PANALTY_STOP
+
+        if obj.mov_score > 0:
+            obj.mov_state        = MovState.MOVING
+            obj.mov_dir          = MovDir.PRECEDING
+        elif obj.mov_score < 0:
+            obj.mov_state        = MovState.MOVING
+            obj.mov_dir          = MovDir.ONCOMING
+        else:
+            obj.mov_state       = MovState.STOP
+            
+            
+    def _set_object_size_from_class(self, obj):
+
+        if obj.class_id == ObjectClass.BUS:
+            obj.len = self.OBJ_LEN_INIT_BUS
+            obj.wid = self.OBJ_WID_INIT_BUS
+
+        elif obj.class_id == ObjectClass.TRUCK:
+            obj.len = self.OBJ_LEN_INIT_TRUCK
+            obj.wid = self.OBJ_WID_INIT_TRUCK
+
+        elif obj.class_id == ObjectClass.LONG_TRUCK:
+            obj.len = self.OBJ_LEN_INIT_LONG_TRUCK
+            obj.wid = self.OBJ_WID_INIT_LONG_TRUCK
+
+        elif obj.class_id == ObjectClass.CAR:
+            obj.len = self.OBJ_LEN_INIT_CAR
+            obj.wid = self.OBJ_WID_INIT_CAR
+
+        elif obj.class_id == ObjectClass.MOTORCYCLE:
+            obj.len = self.OBJ_LEN_INIT_MOTORCYCLE
+            obj.wid = self.OBJ_WID_INIT_MOTORCYCLE
+
+        elif obj.class_id == ObjectClass.PEDESTRIAN:
+            obj.len = self.OBJ_LEN_INIT_PEDESTRIAN
+            obj.wid = self.OBJ_WID_INIT_PEDESTRIAN
+
+        else:
+            obj.len = self.OBJ_LEN_INIT_CAR
+            obj.wid = self.OBJ_WID_INIT_CAR
+
+              
+    def _set_object_position_from_bbox(self, obj):
+
+        # Position calculation
+        img_bot_1 = np.array([obj.bbox.x,                   obj.bbox.y + obj.bbox.h - 1])
+        img_bot_2 = np.array([obj.bbox.x + obj.bbox.w - 1,  obj.bbox.y + obj.bbox.h - 1])
+        
+        wld_bot_1 = self.cmr_model.img2wld(img_bot_1)
+        wld_bot_2 = self.cmr_model.img2wld(img_bot_2)
+        
+        img_pos_center_x = self.cmr_model._cx
+        if img_bot_2[0] < img_pos_center_x:
+            # Ground point: right bottom corner
+            obj.pos_x = wld_bot_2[0] + obj.len * 0.5
+            obj.pos_y = wld_bot_2[1] + obj.wid * 0.5
+
+        elif img_bot_1[0] > img_pos_center_x:
+            # Ground point: left bottom corner
+            obj.pos_x = wld_bot_1[0] + obj.len * 0.5
+            obj.pos_y = wld_bot_1[1] - obj.wid * 0.5
+
+        else:
+            # Ground point: middle of bottom corners
+            obj.pos_x = (wld_bot_1[0] + wld_bot_2[0]) * 0.5 + obj.len * 0.5
+            obj.pos_y = (wld_bot_1[1] + wld_bot_2[1]) * 0.5
