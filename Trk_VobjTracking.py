@@ -169,11 +169,7 @@ class VobjTracking:
         self._merge()
 
         # Not matched object deletion 
-        for i_obj in range(self.NUM_OBJ_MAX):
-
-            if (self.obj[i_obj].idx is not -1) and (self.obj[i_obj]._match_idx is -1):
-                self.obj[i_obj].__init__()
-
+        self._delete()
 
         print('tracking done')
 
@@ -287,8 +283,7 @@ class VobjTracking:
         
 
     def _merge(self):
-        
-        # Object merging
+
         for i_obj in range(len(self.obj)):
 
             if self.obj[i_obj].idx is not -1:
@@ -325,6 +320,15 @@ class VobjTracking:
                                 self.obj[j_obj].pos_y = pos_y_i
                                 self.obj[j_obj].bbox  = self._merge_bbox(bbox_i, bbox_j)
                                 self.obj[i_obj].__init__()
+
+
+    def _delete(self):
+        
+        for i_obj in range(self.NUM_OBJ_MAX):
+
+            if (self.obj[i_obj].idx is not -1) and (self.obj[i_obj]._match_idx is -1):
+                self.obj[i_obj].__init__()
+
 
 
     def _merge_bbox(self, bbox1, bbox2):
