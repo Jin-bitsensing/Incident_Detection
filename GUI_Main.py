@@ -84,9 +84,9 @@ distortion_coefficient      = [ CAMERA_INTRINSIC_K1, CAMERA_INTRINSIC_K2, CAMERA
 extrinsic_translation       = [ CAMERA_EXTRINSIC_POS_X, 
                                 CAMERA_EXTRINSIC_POS_Y, 
                                 CAMERA_EXTRINSIC_POS_Z ]                           # tx, ty, tz
-installation_angle_offset   = [ CAMERA_EXTRINSIC_ANGLE_YAW, 
+installation_angle_offset   = [ CAMERA_EXTRINSIC_ANGLE_ROLL, 
                                 CAMERA_EXTRINSIC_ANGLE_PITCH, 
-                                CAMERA_EXTRINSIC_ANGLE_ROLL ]						# rx, ry, rz
+                                CAMERA_EXTRINSIC_ANGLE_YAW ]						# rx, ry, rz
 extrinsic_euler_angle       = [ -1 * installation_angle_offset[0], 
                                 -1 * installation_angle_offset[1], 
                                 -1 * installation_angle_offset[2] ]
