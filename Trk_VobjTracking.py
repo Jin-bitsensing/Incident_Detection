@@ -351,7 +351,7 @@ class VobjTracking:
         self._set_object_size_from_class(obj)
 
         # Object position estimation
-        self._set_object_position_from_bbox(obj);
+        self._set_object_position_from_bbox(obj)
 
           
     def _moving_state_estimation(self, obj):
