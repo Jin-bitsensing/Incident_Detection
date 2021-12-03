@@ -49,7 +49,7 @@ def DrawVisionObject(screen, TR_View, KeyState, vobj):
             # Data passing
             ID      = vobj[idx].idx
             obj_x   = vobj[idx].pos_x
-            obj_y   = vobj[idx].pos_y
+            obj_y   = -vobj[idx].pos_y
             obj_w   = vobj[idx].wid
             obj_l   = vobj[idx].len
             
