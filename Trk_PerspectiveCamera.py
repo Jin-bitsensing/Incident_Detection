@@ -132,7 +132,7 @@ class PerspectiveCamera:
         return pt_dst
     
         
-    def image_distort(pt_src):
+    def image_distort(self, pt_src):
         pt_norm = self.image_normalize(pt_src)
         pt_dist = self.image_distort_normal(pt_norm)
         pt_dst = self.image_denormalize(pt_dist)
@@ -158,18 +158,18 @@ class PerspectiveCamera:
 
     def image_distort_normal(self, pt_norm):
         # compute radial distortion
-        r2 = pt_norm[0] * pt_norm[0] + pt_norm[1] * pt_norm[1];
+        r2 = pt_norm[0] * pt_norm[0] + pt_norm[1] * pt_norm[1]
         
         alpha = self._k1 * (r2)              \
               + self._k2 * (r2 * r2)         \
-              + self._k3 * (r2 * r2 * r2);
+              + self._k3 * (r2 * r2 * r2)
         
         # compute tangential distortion
-        dxTangential = 2 * self._p1 * pt_norm[0] * pt_norm[1] + self._p2 * (r2 + 2 * pt_norm[0] * pt_norm[0]);
-        dyTangential = self._p1 * (r2 + 2 * pt_norm[1] * pt_norm[1]) + 2 * self._p2 * pt_norm[0] * pt_norm[1];
+        dxTangential = 2 * self._p1 * pt_norm[0] * pt_norm[1] + self._p2 * (r2 + 2 * pt_norm[0] * pt_norm[0])
+        dyTangential = self._p1 * (r2 + 2 * pt_norm[1] * pt_norm[1]) + 2 * self._p2 * pt_norm[0] * pt_norm[1]
         
         pt_dist = np.zeros((2,1))
-        pt_dist[0] = pt_norm[0] + pt_norm[0] * alpha + dxTangential;
-        pt_dist[1] = pt_norm[1] + pt_norm[1] * alpha + dyTangential;
+        pt_dist[0] = pt_norm[0] + pt_norm[0] * alpha + dxTangential
+        pt_dist[1] = pt_norm[1] + pt_norm[1] * alpha + dyTangential
         
         return pt_dist
